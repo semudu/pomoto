@@ -8,10 +8,40 @@ import java.security.MessageDigest;
 
 import javax.xml.bind.DatatypeConverter;
 
+import org.json.JSONObject;
+
+import com.sun.jersey.api.client.Client;
+import com.sun.jersey.api.client.ClientResponse;
+import com.sun.jersey.api.client.WebResource;
+
 public class App {
 
-	//https://search.maven.org/solrsearch/select?q=1:"checksum"
+	// https://search.maven.org/solrsearch/select?q=1:"checksum"
 	private final static String URL = "https://search.maven.org/solrsearch/select";
+
+	private JSONObject findMavenArtifact(String checksum) {
+
+		Client client = Client.create();
+		WebResource webResource = client.resource(URL).queryParam("q", "1:\"" + checksum + "\"");
+		ClientResponse response = webResource.get(ClientResponse.class);
+
+		String entity = response.getEntity(String.class);
+
+		return new JSONObject(entity).getJSONObject("response").getJSONArray("docs").getJSONObject(0);
+
+	}
+
+	private Dependency getMavenDependency(File file) {
+		Dependency dependency = new Dependency();
+		String checksum = this.toHex(this.checksum(file));
+		JSONObject response = findMavenArtifact(checksum);
+
+		dependency.setGroupId(response.getString("g"));
+		dependency.setArtifactId(response.getString("a"));
+		dependency.setVersion(response.getString("v"));
+
+		return dependency;
+	}
 
 	private String toHex(byte[] bytes) {
 		return DatatypeConverter.printHexBinary(bytes);
@@ -48,24 +78,17 @@ public class App {
 			if (fileEntry.isDirectory()) {
 				listFilesForFolder(fileEntry);
 			} else {
-				System.out.println(fileEntry.getName() + " - " + this.toHex(this.checksum(fileEntry)));
+				Dependency dependency = getMavenDependency(fileEntry);
+				System.out.println(dependency.toTAG());
 			}
 		}
 	}
 
 	public static void main(String[] args) {
-		String folderPath = "/Users/semudu/.m2/repository/xpp3/xpp3_min/1.1.4c";
+		String folderPath = "C:\\Users\\TCSDURMAZ\\.m2\\repository";
 		App app = new App();
 
 		app.listFilesForFolder(new File(folderPath));
-		
-		Dependency dep = new Dependency();
-		dep.setGroupId("com.pitika");
-		dep.setArtifactId("pomoto");
-		dep.setVersion("1.0");
-		
-		System.out.println(dep.toTAG());
-		
 
 	}
 }
